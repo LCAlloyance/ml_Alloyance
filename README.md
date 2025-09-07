@@ -15,6 +15,9 @@
 ```
 ML_Alloyance/
 ├── models/                                          # Trained models & assets
+│   ├── model_recovery_rate.json                     # Recovery rate prediction model
+│   ├── model_recycled_content.json                  # Recycled content prediction model
+│   └── model_reuse_potential.json                   # Reuse potential prediction model
 ├── DummyDatasetGeneration.ipynb                     # Synthetic LCA dataset generator
 ├── Main_SIH.ipynb                                   # Core workflow notebook
 ├── Main_SIH_Copy.ipynb                              # Workflow backup
@@ -30,7 +33,7 @@ ML_Alloyance/
 └── README.md                                        # Documentation
 ```
 
-## Getting Started
+##  Getting Started
 
 ### Prerequisites
 - Python 3.7+
