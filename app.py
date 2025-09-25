@@ -5,7 +5,7 @@ import json
 
 # Import your modules
 from model_predictor import LCAPredictor
-from lca_report_generator import generate_lca_report_from_predictions
+from lca_report_generator import generate_ai_lca_report
 
 app = Flask(__name__)
 
@@ -89,8 +89,8 @@ def generate_report():
         report_filename = f"lca_report_{timestamp}.pdf"
         report_path = os.path.join('static/reports', report_filename)
         
-        # Generate the report
-        generate_lca_report_from_predictions(
+        # Generate the AI-powered report
+        generate_ai_lca_report(
             model_predictions=predictions,
             input_parameters=user_input,
             output_file=report_path
@@ -102,6 +102,63 @@ def generate_report():
             'predictions': predictions,
             'report_url': f'/download_report/{report_filename}',
             'report_filename': report_filename
+        }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/generate_ai_report', methods=['POST'])
+def generate_ai_report():
+    """
+    Endpoint to generate AI-powered PDF report with advanced analytics
+    """
+    try:
+        # Get input data
+        data = request.json
+        user_input = data.get('input_data', {})
+        
+        if not user_input:
+            return jsonify({'error': 'No input data provided'}), 400
+        
+        # Make predictions
+        predictions = predictor.predict(user_input)
+        
+        # Generate unique filename for AI report
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        report_filename = f"ai_lca_report_{timestamp}.pdf"
+        report_path = os.path.join('static/reports', report_filename)
+        
+        # Generate the AI-powered report with advanced analytics
+        generate_ai_lca_report(
+            model_predictions=predictions,
+            input_parameters=user_input,
+            output_file=report_path
+        )
+        
+        # Calculate overall circularity score for response
+        circularity_score = (
+            predictions['recycled_content'] + 
+            predictions['reuse_potential'] + 
+            predictions['recovery_rate']
+        ) / 3
+        
+        # Return success response with download link
+        response = {
+            'status': 'success',
+            'report_type': 'AI-Powered Advanced Analytics',
+            'predictions': predictions,
+            'circularity_score': round(circularity_score, 2),
+            'report_url': f'/download_report/{report_filename}',
+            'report_filename': report_filename,
+            'features': [
+                'Multi-agent AI analytics',
+                'Dynamic benchmarking',
+                'Professional terminology',
+                'Strategic recommendations',
+                'Trend projections'
+            ]
         }
         
         return jsonify(response)
@@ -166,6 +223,46 @@ def model_info():
             'status': 'Models loaded successfully'
         }
         return jsonify(info)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/report_options')
+def report_options():
+    """
+    Endpoint to get information about available report types
+    """
+    try:
+        options = {
+            'available_reports': {
+                'standard_report': {
+                    'endpoint': '/generate_report',
+                    'description': 'Standard LCA report with comprehensive analysis',
+                    'features': [
+                        'Input parameter analysis',
+                        'LCA results with visualizations',
+                        'Environmental impact assessment',
+                        'Strategic recommendations'
+                    ]
+                },
+                'ai_powered_report': {
+                    'endpoint': '/generate_ai_report',
+                    'description': 'AI-powered report with advanced multi-agent analytics',
+                    'features': [
+                        'Multi-agent AI analytics',
+                        'Dynamic industry benchmarking',
+                        'Professional terminology optimization',
+                        'Intelligent narrative generation',
+                        'Advanced performance visualizations',
+                        'Trend analysis and projections',
+                        'Strategic roadmap generation'
+                    ]
+                }
+            },
+            'recommendation': 'Use /generate_ai_report for the most advanced analytics and insights'
+        }
+        
+        return jsonify(options)
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
