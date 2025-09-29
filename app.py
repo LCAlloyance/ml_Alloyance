@@ -34,11 +34,9 @@ def predict_circularity():
         
         # Validate required fields
         required_fields = [
-            'Raw Material Quantity (kg or unit)',
-            'Energy Input Quantity (MJ)',
+            'Raw Material Type',
             'Process Stage',
-            'Technology',
-            'Location'
+            'Technology'
         ]
         
         missing_fields = [field for field in required_fields if field not in user_input]
