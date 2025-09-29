@@ -4,7 +4,9 @@ from datetime import datetime
 import json
 
 # Import your modules
-from model_predictor import LCAPredictor
+from predict import LCAPredictor, make_prediction
+from autofill import autofill_lca_data  # wherever you defined this
+
 from lca_report_generator import generate_ai_lca_report
 
 app = Flask(__name__)
@@ -43,9 +45,15 @@ def predict_circularity():
         if missing_fields:
             return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
         
-        # Make predictions using your trained models
-        predictions = predictor.predict(user_input)
-        
+        # 1. Get raw input from user
+        raw_input = user_input  # or request.get_json(force=True)
+
+        # 2. Autofill and preprocess data
+        df_imputed = autofill_lca_data(raw_input)
+
+        # 3. # Call make_prediction from predict.py
+        predictions = make_prediction(predictor, df_imputed)
+
         # Calculate overall circularity score
         circularity_score = (
             predictions['recycled_content'] + 
@@ -55,16 +63,15 @@ def predict_circularity():
         
         # Return predictions
         response = {
-            'status': 'success',
             'predictions': predictions,
-            'circularity_score': round(circularity_score, 2),
+            'circularity_score': circularity_score,
             'timestamp': datetime.now().isoformat()
         }
         
         return jsonify(response)
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'predict_circularity : error': str(e)}), 500
 
 @app.route('/generate_report', methods=['POST'])
 def generate_report():
