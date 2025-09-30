@@ -12,7 +12,7 @@ from lca_report_generator import generate_ai_lca_report
 app = Flask(__name__)
 
 # Initialize the predictor once when app starts
-predictor = LCAPredictor(model_dir='models/')
+predictor = LCAPredictor(model_dir='ml_Alloyance/model/')
 
 # Create directories for reports
 os.makedirs('reports', exist_ok=True)
