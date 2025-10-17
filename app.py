@@ -1,298 +1,145 @@
-from flask import Flask, request, jsonify, send_file, render_template
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse, Response
+from pydantic import BaseModel
+import random
+import datetime
 import os
-from datetime import datetime
-import json
 
-# Import your modules
-from predict import LCAPredictor, make_prediction
-from autofill import autofill_lca_data  # wherever you defined this
+class UserLogin(BaseModel):
+    email: str
+    password: str
 
-from lca_report_generator import generate_ai_lca_report
+app = FastAPI(title="Circular Metals API")
 
-app = Flask(__name__)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Initialize the predictor once when app starts
-predictor = LCAPredictor(model_dir='ml_Alloyance/model/')
+# ===== ALL API ROUTES FIRST =====
+#just for reference -these apis are not production ready and can be atatcked easily 
+#before deploing need to check their security
 
-# Create directories for reports
-os.makedirs('reports', exist_ok=True)
-os.makedirs('static/reports', exist_ok=True)
 
-@app.route('/')
-def home():
-    return render_template('index.html')  # Your frontend
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
 
-@app.route('/predict', methods=['POST'])
-def predict_circularity():
-    """
-    Endpoint to make LCA predictions based on user input
-    """
-    try:
-        # Get JSON data from request
-        user_input = request.json
-        
-        if not user_input:
-            return jsonify({'error': 'No input data provided'}), 400
-        
-        # Validate required fields
-        required_fields = [
-            'Raw Material Type',
-            'Process Stage',
-            'Technology'
-        ]
-        
-        missing_fields = [field for field in required_fields if field not in user_input]
-        if missing_fields:
-            return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
-        
-        # 1. Get raw input from user
-        raw_input = user_input  # or request.get_json(force=True)
-
-        # 2. Autofill and preprocess data
-        df_imputed = autofill_lca_data(raw_input)
-
-        # 3. # Call make_prediction from predict.py
-        predictions = make_prediction(predictor, df_imputed)
-
-        # Calculate overall circularity score
-        circularity_score = (
-            predictions['recycled_content'] + 
-            predictions['reuse_potential'] + 
-            predictions['recovery_rate']
-        ) / 3
-        
-        # Return predictions
-        response = {
-            'predictions': predictions,
-            'circularity_score': circularity_score,
-            'timestamp': datetime.now().isoformat()
+@app.post("/api/login")
+async def login_user(user_login: UserLogin):
+    if user_login.email.endswith("@gmail.com") and user_login.password:
+        return {
+            "success": True,
+            "token": "real-backend-token-" + str(datetime.datetime.utcnow().timestamp()),
+            "user": {"email": user_login.email},
         }
-        
-        return jsonify(response)
-        
-    except Exception as e:
-        return jsonify({'predict_circularity : error': str(e)}), 500
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@app.route('/generate_report', methods=['POST'])
-def generate_report():
-    """
-    Endpoint to generate PDF report with LCA results
-    """
-    try:
-        # Get input data
-        data = request.json
-        user_input = data.get('input_data', {})
-        
-        if not user_input:
-            return jsonify({'error': 'No input data provided'}), 400
-        
-        # Make predictions
-        predictions = predictor.predict(user_input)
-        
-        # Generate unique filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        report_filename = f"lca_report_{timestamp}.pdf"
-        report_path = os.path.join('static/reports', report_filename)
-        
-        # Generate the AI-powered report
-        generate_ai_lca_report(
-            model_predictions=predictions,
-            input_parameters=user_input,
-            output_file=report_path
-        )
-        
-        # Return success response with download link
-        response = {
-            'status': 'success',
-            'predictions': predictions,
-            'report_url': f'/download_report/{report_filename}',
-            'report_filename': report_filename
-        }
-        
-        return jsonify(response)
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.post("/api/assessment")
+async def run_assessment(request: Request):
+    payload = await request.json()
+    recycled = float(payload.get("recycledContent", 50) or 0)
+    
+    base_circularity = 40 + (recycled * 0.45)
+    if payload.get("energyUse") == "renewable": 
+        base_circularity += 10
+    if payload.get("transport") in ["local", "rail"]: 
+        base_circularity += 5
+    if payload.get("endOfLife") in ["recycle", "reuse"]: 
+        base_circularity += 10
 
-@app.route('/generate_ai_report', methods=['POST'])
-def generate_ai_report():
-    """
-    Endpoint to generate AI-powered PDF report with advanced analytics
-    """
-    try:
-        # Get input data
-        data = request.json
-        user_input = data.get('input_data', {})
-        
-        if not user_input:
-            return jsonify({'error': 'No input data provided'}), 400
-        
-        # Make predictions
-        predictions = predictor.predict(user_input)
-        
-        # Generate unique filename for AI report
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        report_filename = f"ai_lca_report_{timestamp}.pdf"
-        report_path = os.path.join('static/reports', report_filename)
-        
-        # Generate the AI-powered report with advanced analytics
-        generate_ai_lca_report(
-            model_predictions=predictions,
-            input_parameters=user_input,
-            output_file=report_path
-        )
-        
-        # Calculate overall circularity score for response
-        circularity_score = (
-            predictions['recycled_content'] + 
-            predictions['reuse_potential'] + 
-            predictions['recovery_rate']
-        ) / 3
-        
-        # Return success response with download link
-        response = {
-            'status': 'success',
-            'report_type': 'AI-Powered Advanced Analytics',
-            'predictions': predictions,
-            'circularity_score': round(circularity_score, 2),
-            'report_url': f'/download_report/{report_filename}',
-            'report_filename': report_filename,
-            'features': [
-                'Multi-agent AI analytics',
-                'Dynamic benchmarking',
-                'Professional terminology',
-                'Strategic recommendations',
-                'Trend projections'
-            ]
-        }
-        
-        return jsonify(response)
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    environmental_score = 35 + (recycled * 0.5)
+    if payload.get("energyUse") == "fossil": 
+        environmental_score -= 15
+    if payload.get("endOfLife") == "landfill": 
+        environmental_score -= 20
+    
+    return {
+        "circularityScore": max(0, min(100, round(base_circularity))),
+        "environmentalScore": max(0, min(100, round(environmental_score))),
+        "recommendations": random.sample([
+            "Increase recycled content to reduce virgin input dependency.",
+            "Optimize transport routes and prefer rail/sea logistics.",
+            "Adopt closed-loop water systems in processing.",
+            "Redesign product for easier disassembly and reuse.",
+        ], 3),
+        "missingParams": 0,
+        "confidence": 95
+    }
 
-@app.route('/download_report/<filename>')
-def download_report(filename):
-    """
-    Endpoint to download generated PDF reports
-    """
-    try:
-        file_path = os.path.join('static/reports', filename)
-        if os.path.exists(file_path):
-            return send_file(
-                file_path,
-                as_attachment=True,
-                download_name=filename,
-                mimetype='application/pdf'
-            )
-        else:
-            return jsonify({'error': 'Report file not found'}), 404
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.get("/api/environmental-impact")
+async def get_environmental_impact():
+    return [
+        {"name": "CO2 Emissions", "conventional": 850, "circular": 320},
+        {"name": "Energy Use", "conventional": 1200, "circular": 680},
+        {"name": "Water Use", "conventional": 400, "circular": 180},
+        {"name": "Waste Gen.", "conventional": 200, "circular": 45},
+    ]
 
-@app.route('/batch_predict', methods=['POST'])
-def batch_predict():
-    """
-    Endpoint for batch predictions (multiple inputs at once)
-    """
-    try:
-        # Get list of inputs
-        input_list = request.json.get('inputs', [])
-        
-        if not input_list:
-            return jsonify({'error': 'No input data provided'}), 400
-        
-        # Make batch predictions
-        results = predictor.batch_predict(input_list)
-        
-        return jsonify({
-            'status': 'success',
-            'results': results,
-            'count': len(results)
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.get("/api/circularity-indicators")
+async def get_circularity_indicators():
+    return [
+        {"name": "Recycled Content", "value": 65, "target": 80},
+        {"name": "Resource Efficiency", "value": 72, "target": 85},
+        {"name": "Product Life Ext.", "value": 58, "target": 75},
+        {"name": "Reuse Potential", "value": 43, "target": 60},
+    ]
 
-@app.route('/model_info')
-def model_info():
-    """
-    Endpoint to get information about loaded models
-    """
-    try:
-        info = {
-            'models_loaded': list(predictor.models.keys()),
-            'categorical_columns': predictor.categorical_cols,
-            'model_directory': predictor.model_dir,
-            'status': 'Models loaded successfully'
-        }
-        return jsonify(info)
+@app.get("/api/flow-data")
+async def get_flow_data():
+    return [
+        {"stage": "Extraction", "material": 100, "recycled": 0},
+        {"stage": "Processing", "material": 95, "recycled": 60},
+        {"stage": "Manufacturing", "material": 90, "recycled": 85},
+        {"stage": "Use", "material": 88, "recycled": 83},
+        {"stage": "End-of-Life", "material": 25, "recycled": 75},
+    ]
+
+@app.get("/api/pie-data")
+async def get_pie_data():
+    return [
+        {"name": "Recycled", "value": 45, "color": "#10b981"},
+        {"name": "Virgin", "value": 35, "color": "#6366f1"},
+        {"name": "Recovered", "value": 20, "color": "#f59e0b"},
+    ]
+
+@app.post("/api/reports/export")
+async def export_report_csv():
+    csv_content = "Metric,Conventional,Circular\n"
+    csv_content += "CO2 Emissions,850,320\n"
+    csv_content += "Energy Use,1200,680\n"
+    csv_content += "Water Use,400,180\n"
+    csv_content += "Waste Generation,200,45\n"
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=alloyance_report.csv"}
+    )
+
+# ===== STATIC FILES LAST (IMPORTANT!) =====
+#these part serves the react app -make sure run buid first 
+# or else white screen problem can appeaar
+#--Ignore--
+
+
+BUILD_DIR = os.path.join(os.path.dirname(os.path.abspath(_file_)), "my-app", "build")
+
+if os.path.exists(BUILD_DIR):
+    @app.get("/{full_path:path}")
+    async def catch_all(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404)
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        file_path = os.path.join(BUILD_DIR, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(BUILD_DIR, "index.html"))
 
-@app.route('/report_options')
-def report_options():
-    """
-    Endpoint to get information about available report types
-    """
-    try:
-        options = {
-            'available_reports': {
-                'standard_report': {
-                    'endpoint': '/generate_report',
-                    'description': 'Standard LCA report with comprehensive analysis',
-                    'features': [
-                        'Input parameter analysis',
-                        'LCA results with visualizations',
-                        'Environmental impact assessment',
-                        'Strategic recommendations'
-                    ]
-                },
-                'ai_powered_report': {
-                    'endpoint': '/generate_ai_report',
-                    'description': 'AI-powered report with advanced multi-agent analytics',
-                    'features': [
-                        'Multi-agent AI analytics',
-                        'Dynamic industry benchmarking',
-                        'Professional terminology optimization',
-                        'Intelligent narrative generation',
-                        'Advanced performance visualizations',
-                        'Trend analysis and projections',
-                        'Strategic roadmap generation'
-                    ]
-                }
-            },
-            'recommendation': 'Use /generate_ai_report for the most advanced analytics and insights'
-        }
-        
-        return jsonify(options)
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/health')
-def health_check():
-    """
-    Health check endpoint
-    """
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'models_loaded': len(predictor.models) == 3
-    })
-
-# Error handlers
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Endpoint not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'Internal server error'}), 500
-
-if __name__ == '__main__':
-    print("Starting LCA Prediction Flask App...")
-    print(f"Models loaded: {list(predictor.models.keys())}")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+if _name_ == "_main_":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
