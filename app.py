@@ -6,6 +6,18 @@ from typing import Annotated, Literal, Optional
 import random
 import datetime
 import os
+import sys
+import uuid
+
+# Imports
+from autofill import autofill_missing_values   # src/autofill.py
+from predict import make_prediction            # src/predict.py
+from report_tech import generate_pdf_report    # src/report_tech.py
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(BASE_DIR, "src")
+MODEL_DIR = os.path.join(BASE_DIR, "model")
+REPORTS_DIR = os.path.join(BASE_DIR, "reports")
 
 class UserLogin(BaseModel):
     email: str
@@ -25,6 +37,10 @@ class InputData(BaseModel):
         Literal['2020-2025', '2015-2019', '2010-2014'],
         Field(..., alias='Time Period', description="Time period or year of operation")
     ]
+    # time_period: Annotated[
+    #     Optional[Literal['2020-2025', '2015-2019', '2010-2014']],
+    #     Field(None, alias='Time Period', description="Time period or year of operation")
+    # ]
     location: Annotated[
         Literal['South America', 'Asia', 'North America', 'Europe'],
         Field(..., alias='Location', description="Geographical location")
@@ -287,29 +303,44 @@ async def get_pie_data():
         {"name": "Recovered", "value": 20, "color": "#f59e0b"},
     ]
 
+
+
+
 @app.post("/api/reports/export")
-async def export_report_csv():
+async def export_report(input_data: InputData):
+    """
+    1. Autofill missing values (autofill.py)
+    2. Generate predictions (predict.py)
+    3. Create PDF report (report.py)
+    4. Return PDF to user
+    """
     try:
-        # Step 1: Preprocessing
-        processed = preprocess_data(data.dict())
+        # --- STEP 1: AUTOFILL ---
+        autofilled_dict = autofill_missing_values(input_data.model_dump(by_alias=True))
 
-        # Step 2: Prediction
-        prediction = make_prediction(processed)
+        # --- STEP 2: PREDICT ---
+        # prediction_dict should include both autofilled data + model outputs
+        prediction_dict = make_prediction(autofilled_dict)
 
-        # Step 3: Generate PDF report
-        report_name = f"report_{uuid.uuid4().hex}.pdf"
-        report_path = os.path.join("reports", report_name)
-        generate_pdf_report(data.dict(), prediction, report_path)
+        # --- STEP 3: GENERATE REPORT ---
+        report_filename = f"report_{uuid.uuid4().hex}.pdf"
+        report_path = os.path.join(REPORTS_DIR, report_filename)
 
-        # Step 4: Return the PDF directly
+        generate_pdf_report(
+            input_data=prediction_dict,
+            output_path=report_path
+        )
+
+        # --- STEP 4: RETURN PDF ---
         return FileResponse(
             path=report_path,
-            filename="prediction_report.pdf",  # name for download
-            media_type="application/pdf"
+            media_type="application/pdf",
+            filename=os.path.basename(report_path)
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
+
 
 # ===== STATIC FILES LAST (IMPORTANT!) =====
 #these part serves the react app -make sure run buid first 
