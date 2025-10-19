@@ -10,14 +10,15 @@ import sys
 import uuid
 
 # Imports
-from autofill import autofill_missing_values   # src/autofill.py
-from predict import make_prediction            # src/predict.py
-from report_tech import generate_pdf_report    # src/report_tech.py
+from src.autofill import autofill_missing_values # src/autofill.py
+from src.predict import make_prediction # src/predict.py
+from src.report.report_tech import generate_report_from_dict # src/report/report_tech.py
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(BASE_DIR, "src")
 MODEL_DIR = os.path.join(BASE_DIR, "model")
-REPORTS_DIR = os.path.join(BASE_DIR, "reports")
+REPORTS_DIR = os.path.join(BASE_DIR, "generatedpdf")
+os.makedirs(REPORTS_DIR, exist_ok=True)
 
 class UserLogin(BaseModel):
     email: str
@@ -233,7 +234,6 @@ async def get_pie_data():
 
 
 
-
 @app.post("/api/reports/export")
 async def export_report(input_data: InputData):
     """
@@ -250,16 +250,13 @@ async def export_report(input_data: InputData):
         # prediction_dict should include both autofilled data + model outputs
         prediction_dict = make_prediction(autofilled_dict)
 
-        # --- STEP 3: GENERATE REPORT ---
+        # Step 3: Generate report
         report_filename = f"report_{uuid.uuid4().hex}.pdf"
         report_path = os.path.join(REPORTS_DIR, report_filename)
 
-        generate_pdf_report(
-            input_data=prediction_dict,
-            output_path=report_path
-        )
+        generate_report_from_dict(prediction_dict, output_file=report_path)
 
-        # --- STEP 4: RETURN PDF ---
+        # Step 4: Return PDF file
         return FileResponse(
             path=report_path,
             media_type="application/pdf",
