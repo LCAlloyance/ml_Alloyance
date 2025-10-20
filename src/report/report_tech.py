@@ -13,12 +13,12 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 # Import RAG-based text generation functions
 # ------------------------------------------------------
 try:
-    from src.rag.rag_pipline import generate_summary, generate_circularity_analysis
+    from src.rag.rag_pipline import generate_summary, generate_circularity_analysis, generate_emission_interpretation, generate_energy_efficiency_analysis, generate_benchmark_analysis, generate_action_recommendations
 except ModuleNotFoundError:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     RAG_DIR = os.path.join(BASE_DIR, "rag")
     sys.path.append(RAG_DIR)
-    from rag_pipline import generate_summary, generate_circularity_analysis
+    from rag_pipline import generate_summary, generate_circularity_analysis, generate_emission_interpretation, generate_energy_efficiency_analysis, generate_benchmark_analysis, generate_action_recommendations
 
 
 # ------------------------------------------------------
@@ -251,58 +251,58 @@ def generate_report_from_dict_enhanced(data: dict, output_file=None):
     except Exception as e:
         circ_assessment = ("(Error producing circularity analysis from RAG pipeline.)\n"
                            f"Pipeline error: {e}")
-        
     try:
         emission_analysis = generate_emission_interpretation(
-            emission_co2=emission_co2,
-            emission_sox=emission_sox,
-            emission_nox=emission_nox,
-            emission_pm=emission_pm,
-            emission_amd=emission_amd,
-            emission_hm=emission_hm,
-            emission_bod=emission_bod,
-            ghg_emissions=ghg_emissions,
-            material=material,
-            process_stage=process_stage
+            material,
+            process_stage,
+            emission_co2,
+            emission_sox,
+            emission_nox,
+            emission_pm,
+            emission_amd,
+            emission_hm,
+            emission_bod,
+            ghg_emissions
         )
     except Exception as e:
         emission_analysis = f"(Error producing emission interpretation: {e})"
 
     try:
         energy_comment = generate_energy_efficiency_analysis(
-            energy_input_qty=energy_input_qty,
-            process_stage=process_stage,
-            technology=technology,
-            material=material
+            material,
+            process_stage,
+            technology,
+            energy_input_qty
         )
     except Exception as e:
         energy_comment = f"(Error generating energy efficiency analysis: {e})"
 
     try:
         benchmark_text = generate_benchmark_analysis(
-            material=material,
-            circ_score=circ_score,
-            recycled_content=recycled_content,
-            reuse_potential=reuse_potential,
-            recovery_rate=recovery_rate
+            material,
+            circ_score,
+            recycled_content,
+            reuse_potential,
+            recovery_rate
         )
     except Exception as e:
         benchmark_text = f"(Error generating benchmark analysis: {e})"
 
     try:
         recommendations_text = generate_action_recommendations(
-            material=material,
-            circ_score=circ_score,
-            technology=technology,
-            process_stage=process_stage,
-            recycled_content=recycled_content,
-            reuse_potential=reuse_potential,
-            recovery_rate=recovery_rate,
-            ghg_emissions=ghg_emissions,
-            energy_input_qty=energy_input_qty
+            material,
+            process_stage,
+            technology,
+            circ_score,
+            recycled_content,
+            reuse_potential,
+            recovery_rate,
+            ghg_emissions,
+            energy_input_qty
         )
     except Exception as e:
         recommendations_text = f"(Error generating recommendations: {e})"
+
 
 
     # ---------- Page 1 ----------
